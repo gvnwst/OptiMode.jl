@@ -99,11 +99,18 @@ function solve_k_single(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;n
 	return kmag, evec_out #copy(ms.H⃗[:,eigind])
 end
 
-# ::Tuple{T,Vector{Complex{T}}}
+"""
+	Solve k for a specified number of modes, sequentially calling 
+	solve_k_single()
+
+"""
 function solve_k(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
 	max_eigsolves=60,log=false,f_filter=nothing) where {ND,T<:Real} #
 	kmags = Vector{T}(undef,nev)
 	evecs = Matrix{Complex{T}}(undef,(size(ms.H⃗,1),nev))
+	println("Solving modes without any base guess")
+	# println("Using a base guess to solve nth mode")
+
 	for (idx,eigind) in enumerate(1:nev)
 		# idx>1 && copyto!(ms.H⃗,repeat(evecs[:,idx-1],1,size(ms.H⃗,2)))
 		kmag, evec = solve_k_single(ms,ω,solver;nev,eigind,maxiter,max_eigsolves,k_tol,eig_tol,log)
@@ -113,7 +120,9 @@ function solve_k(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,ma
 	return kmags, collect(copy.(eachcol(evecs))) #evecs #[copy(ev) for ev in eachcol(evecs)] #collect(eachcol(evecs))
 end
 
-
+"""
+This function is UNUSED (below)
+"""
 function solve_k(ms::ModeSolver{ND,T},ω::T,solver::TS;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
 	max_eigsolves=60,log=false,f_filter=nothing) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} #
 	@debug "Using HDF5-logging solve_k method"
@@ -134,12 +143,21 @@ function solve_k(ms::ModeSolver{ND,T},ω::T,solver::TS;nev=1,maxiter=100,k_tol=1
 	return kmags, collect(copy.(eachcol(evecs))) #evecs #[copy(ev) for ev in eachcol(evecs)] #collect(eachcol(evecs))
 end
 
+"""
+Unclear if this function is used.
+"""
 function solve_k(ms::ModeSolver{ND,T},ω::T,ε⁻¹::AbstractArray{T},solver::AbstractEigensolver;nev=1,
 	max_eigsolves=60, maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,f_filter=nothing) where {ND,T<:Real} 
 	Zygote.@ignore(update_ε⁻¹(ms,ε⁻¹))
 	solve_k(ms, ω, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, f_filter)
 end
 
+"""
+	Solves the wavevector of a given dielectric structure ε at frequency ω. 
+
+	This function is the primary interface between user and OptiMode for 
+	returning modal data. 
+"""
 function solve_k(ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::AbstractEigensolver;nev=1,
 	max_eigsolves=60,maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,kguess=nothing,Hguess=nothing,
 	f_filter=nothing,overwrite=false) where {ND,T<:Real} 
@@ -147,8 +165,10 @@ function solve_k(ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::Abstra
 	solve_k(ms, ω, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, f_filter,)
 end
 
-
-function rrule(::typeof(solve_k), ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::TS;nev=1,
+"""
+	Defines the pullback map for the solve_k routine.
+"""
+function rrule(::typeof(solve_k), ω::T, ε⁻¹::AbstractArray{T}, grid::Grid{ND,T}, solver::TS; nev=1,
 	max_eigsolves=60,maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,kguess=nothing,Hguess=nothing,
 	f_filter=nothing,overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver} 
 	
@@ -226,10 +246,12 @@ function rrule(::typeof(solve_k), ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,
 	return ((kmags, evecs), solve_k_pullback)
 end
 
-
-function rrule(::typeof(solve_k), ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::TS;nev=1,
-	max_eigsolves=60,maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,kguess=nothing,Hguess=nothing,
-	f_filter=nothing,overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} 
+"""
+	Defines the pullback map for the solve_k routine, including a logger.
+"""
+function rrule(::typeof(solve_k), ω::T, ε⁻¹::AbstractArray{T}, grid::Grid{ND,T}, solver::TS; nev=1,
+	max_eigsolves=60, maxiter=100, k_tol=1e-8, eig_tol=1e-8, log=false, kguess=nothing, Hguess=nothing,
+	f_filter=nothing, overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} 
 	
 	kmags,evecs = solve_k(ω, ε⁻¹, grid, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, kguess, Hguess,
 	f_filter, overwrite)
@@ -334,12 +356,3 @@ function rrule(::typeof(solve_k), ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,
 	end
 	return ((kmags, evecs), solve_k_pullback)
 end
-
-
-
-
-
-
-
-
-
