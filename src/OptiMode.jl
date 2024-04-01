@@ -75,10 +75,12 @@ import Base: size, eltype
 import LinearAlgebra: mul!
 import ChainRulesCore: rrule
 
-
-# FFTW settings
-FFTW.set_num_threads(1)    # chosen for thread safety when combined with other parallel code, consider increasing
-
+## FFTW settings
+# Set environment variable `OPTIMODE_NUM_THREADS` to increase number of threads.
+# Default = 1, chosen for thread safety when combined with other parallel code, consider increasing
+fftw_threads = haskey(ENV, "OPTIMODE_NUM_THREADS") ? ENV["OPTIMODE_NUM_THREADS"] : 1
+# fftw_threads = 1
+FFTW.set_num_threads(fftw_threads)
 
 ## Add methods to external packages ##
 LinearAlgebra.ldiv!(c,A::LinearMaps.LinearMap,b) = mul!(c,A',b)
