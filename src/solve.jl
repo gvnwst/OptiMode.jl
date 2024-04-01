@@ -29,28 +29,43 @@ ex. f_filter = (ms,αX)->sum(abs2,𝓟x(ms.grid)*αX[2])>0.9
 where the modesolver `ms` is passed for access to any auxilary information
 """
 function filter_eigs(ms::ModeSolver{ND,T},f_filter::Function)::Tuple{Vector{T},Matrix{Complex{T}}} where {ND,T<:Real}
+
 	ω²H_filt = filter(ω²H->f_filter(ms,ω²H), [(real(ms.ω²[i]),ms.H⃗[:,i]) for i=1:length(ms.ω²)] )
 	return copy(getindex.(ω²H_filt,1)), copy(hcat(getindex.(ω²H_filt,2)...)) # ω²_filt, H_filt
 	# return getindex.(ω²H_filt,1), hcat(getindex.(ω²H_filt,2)...) # ω²_filt, H_filt
 end
 
+"""
+Needs Docstring
 
-function solve_ω²(ms::ModeSolver{ND,T},k::TK,solver::AbstractEigensolver;nev=1,maxiter=100,tol=1e-8,
-	log=false) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+"""
+function solve_ω²(ms::ModeSolver{ND,T},k::TK,solver::AbstractEigensolver;
+	nev=1, maxiter=100, tol=1e-8,	log=false) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+
 	# @ignore(update_k!(ms,k))
 	update_k!(ms,k)
 	solve_ω²(ms,solver; nev, maxiter, tol, log)
 end
 
-function solve_ω²(ms::ModeSolver{ND,T},k::TK,ε⁻¹::AbstractArray{T},solver::AbstractEigensolver;nev=1,
-	maxiter=100,tol=1e-8,log=false) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+"""
+Needs Docstring
+
+"""
+function solve_ω²(ms::ModeSolver{ND,T},k::TK,ε⁻¹::AbstractArray{T},solver::AbstractEigensolver;
+	nev=1, maxiter=100, tol=1e-8, log=false) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+
 	@ignore(update_k!(ms,k))
 	@ignore(update_ε⁻¹(ms,ε⁻¹))
 	solve_ω²(ms,solver; nev, maxiter, tol, log)
 end
 
-function solve_ω²(k::TK,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::AbstractEigensolver;nev=1,maxiter=100,
-	tol=1e-8,log=false,evecs_guess=nothing) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+"""
+Needs Docstring
+
+"""
+function solve_ω²(k::TK,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::AbstractEigensolver;
+	nev=1, maxiter=100, tol=1e-8, log=false, evecs_guess=nothing) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+
 	ms = ignore() do
 		ms = ModeSolver(k, ε⁻¹, grid; nev, maxiter, tol)
 		if !isnothing(Hguess)
@@ -73,9 +88,10 @@ end
 """
 modified solve_ω version for Newton solver, which wants (x -> f(x), f(x)/f'(x)) as input to solve f(x) = 0
 """
-function _solve_Δω²(ms::ModeSolver{ND,T},k::TK,ωₜ::T,evec_out::Vector{Complex{T}},solver::AbstractEigensolver;nev=1,
-	eigind=1,maxiter=100,eig_tol=1e-8,log=false) where {ND,T<:Real,TK}
-	evals,evecs = solve_ω²(ms,k,solver; nev, maxiter, tol=eig_tol, log)
+function _solve_Δω²(ms::ModeSolver{ND,T}, k::TK, ωₜ::T, evec_out::Vector{Complex{T}},solver::AbstractEigensolver;
+	nev=1, eigind=1, maxiter=100, eig_tol=1e-8, log=false) where {ND,T<:Real,TK}
+
+	evals,evecs = solve_ω²(ms, k, solver; nev, maxiter, tol=eig_tol, log)
 	evec_out[:] = copy(evecs[eigind]) #copyto!(evec_out,evecs[eigind])
 	Δω² = evals[eigind] - ωₜ^2
 	∂ω²∂k = 2 * HMₖH(evec_out,ms.M̂.ε⁻¹,ms.M̂.mag,ms.M̂.mn) # = 2ω*(∂ω/∂|k|); ∂ω/∂|k| = group velocity = c / ng; c = 1 here
@@ -85,11 +101,15 @@ function _solve_Δω²(ms::ModeSolver{ND,T},k::TK,ωₜ::T,evec_out::Vector{Comp
 end
 
 # ::Tuple{T,Vector{Complex{T}}}
-function solve_k_single(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,eigind=1,
-	maxiter=100,max_eigsolves=60,k_tol=1e-10,eig_tol=1e-8,log=false) where {ND,T<:Real} #
-    evec_out = Vector{Complex{T}}(undef,size(ms.H⃗,1))
+"""
+	Inverts the Helmholtz problem _solve_Δω² to find k(ω) instead of ω(k) using an iterative solving routine.
+"""
+function solve_k_single(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;
+	nev=1, eigind=1, maxiter=100, max_eigsolves=60, k_tol=1e-10, eig_tol=1e-8, log=false) where {ND,T<:Real} #
+
+	evec_out = Vector{Complex{T}}(undef,size(ms.H⃗,1))
 	kmag = Roots.find_zero(
-		x -> _solve_Δω²(ms,x,ω,evec_out,solver;nev,eigind,maxiter,eig_tol),	# f(x), it will find zeros of this function
+		x -> _solve_Δω²(ms, x, ω, evec_out, solver; nev, eigind, maxiter, eig_tol),	# f(x), it will find zeros of this function
 		ms.M̂.k⃗[3],				  # initial guess, previous |k|(ω) solution
 		Roots.Newton(); 			# iterative zero-finding algorithm
 		atol=k_tol,					# absolute |k| convergeance tolerance 
@@ -104,8 +124,9 @@ end
 	solve_k_single()
 
 """
-function solve_k_nmodes(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
-	max_eigsolves=60,log=false) where {ND,T<:Real} #
+function solve_k_nmodes(ms::ModeSolver{ND,T}, ω::T, solver::AbstractEigensolver;
+	nev=1, maxiter=100, k_tol=1e-8, eig_tol=1e-8, max_eigsolves=60, log=false) where {ND,T<:Real} #
+
 	kmags = Vector{T}(undef,nev)
 	evecs = Matrix{Complex{T}}(undef,(size(ms.H⃗,1),nev))
 	println("Solving modes without any base guess")
