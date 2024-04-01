@@ -36,21 +36,21 @@ end
 
 
 function solve_ω²(ms::ModeSolver{ND,T},k::TK,solver::AbstractEigensolver;nev=1,maxiter=100,tol=1e-8,
-	log=false,f_filter=nothing) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+	log=false) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
 	# @ignore(update_k!(ms,k))
 	update_k!(ms,k)
-	solve_ω²(ms,solver; nev, maxiter, tol, log, f_filter)
+	solve_ω²(ms,solver; nev, maxiter, tol, log)
 end
 
 function solve_ω²(ms::ModeSolver{ND,T},k::TK,ε⁻¹::AbstractArray{T},solver::AbstractEigensolver;nev=1,
-	maxiter=100,tol=1e-8,log=false,f_filter=nothing) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+	maxiter=100,tol=1e-8,log=false) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
 	@ignore(update_k!(ms,k))
 	@ignore(update_ε⁻¹(ms,ε⁻¹))
-	solve_ω²(ms,solver; nev, maxiter, tol, log, f_filter)
+	solve_ω²(ms,solver; nev, maxiter, tol, log)
 end
 
 function solve_ω²(k::TK,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::AbstractEigensolver;nev=1,maxiter=100,
-	tol=1e-8,log=false,evecs_guess=nothing,f_filter=nothing) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
+	tol=1e-8,log=false,evecs_guess=nothing) where {ND,T<:Real,TK<:Union{T,SVector{3,T}}}
 	ms = ignore() do
 		ms = ModeSolver(k, ε⁻¹, grid; nev, maxiter, tol)
 		if !isnothing(Hguess)
@@ -58,7 +58,7 @@ function solve_ω²(k::TK,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::Abs
 		end
 		return ms
 	end
-	solve_ω²(ms,solver; nev, maxiter, tol, log, f_filter)
+	solve_ω²(ms,solver; nev, maxiter, tol, log)
 end
 
 """
@@ -74,8 +74,8 @@ end
 modified solve_ω version for Newton solver, which wants (x -> f(x), f(x)/f'(x)) as input to solve f(x) = 0
 """
 function _solve_Δω²(ms::ModeSolver{ND,T},k::TK,ωₜ::T,evec_out::Vector{Complex{T}},solver::AbstractEigensolver;nev=1,
-	eigind=1,maxiter=100,eig_tol=1e-8,log=false,f_filter=nothing) where {ND,T<:Real,TK}
-	evals,evecs = solve_ω²(ms,k,solver; nev, maxiter, tol=eig_tol, log, f_filter)
+	eigind=1,maxiter=100,eig_tol=1e-8,log=false) where {ND,T<:Real,TK}
+	evals,evecs = solve_ω²(ms,k,solver; nev, maxiter, tol=eig_tol, log)
 	evec_out[:] = copy(evecs[eigind]) #copyto!(evec_out,evecs[eigind])
 	Δω² = evals[eigind] - ωₜ^2
 	∂ω²∂k = 2 * HMₖH(evec_out,ms.M̂.ε⁻¹,ms.M̂.mag,ms.M̂.mn) # = 2ω*(∂ω/∂|k|); ∂ω/∂|k| = group velocity = c / ng; c = 1 here
@@ -86,10 +86,10 @@ end
 
 # ::Tuple{T,Vector{Complex{T}}}
 function solve_k_single(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,eigind=1,
-	maxiter=100,max_eigsolves=60,k_tol=1e-10,eig_tol=1e-8,log=false,f_filter=nothing) where {ND,T<:Real} #
+	maxiter=100,max_eigsolves=60,k_tol=1e-10,eig_tol=1e-8,log=false) where {ND,T<:Real} #
     evec_out = Vector{Complex{T}}(undef,size(ms.H⃗,1))
 	kmag = Roots.find_zero(
-		x -> _solve_Δω²(ms,x,ω,evec_out,solver;nev,eigind,maxiter,eig_tol,f_filter),	# f(x), it will find zeros of this function
+		x -> _solve_Δω²(ms,x,ω,evec_out,solver;nev,eigind,maxiter,eig_tol),	# f(x), it will find zeros of this function
 		ms.M̂.k⃗[3],				  # initial guess, previous |k|(ω) solution
 		Roots.Newton(); 			# iterative zero-finding algorithm
 		atol=k_tol,					# absolute |k| convergeance tolerance 
@@ -104,8 +104,8 @@ end
 	solve_k_single()
 
 """
-function solve_k(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
-	max_eigsolves=60,log=false,f_filter=nothing) where {ND,T<:Real} #
+function solve_k_nmodes(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
+	max_eigsolves=60,log=false) where {ND,T<:Real} #
 	kmags = Vector{T}(undef,nev)
 	evecs = Matrix{Complex{T}}(undef,(size(ms.H⃗,1),nev))
 	println("Solving modes without any base guess")
@@ -120,37 +120,37 @@ function solve_k(ms::ModeSolver{ND,T},ω::T,solver::AbstractEigensolver;nev=1,ma
 	return kmags, collect(copy.(eachcol(evecs))) #evecs #[copy(ev) for ev in eachcol(evecs)] #collect(eachcol(evecs))
 end
 
-"""
-This function is UNUSED (below)
-"""
-function solve_k(ms::ModeSolver{ND,T},ω::T,solver::TS;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
-	max_eigsolves=60,log=false,f_filter=nothing) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} #
-	@debug "Using HDF5-logging solve_k method"
-	kmags = Vector{T}(undef,nev)
-	evecs = Matrix{Complex{T}}(undef,(size(ms.H⃗,1),nev))
-	for (idx,eigind) in enumerate(1:nev)
-		# idx>1 && copyto!(ms.H⃗,repeat(evecs[:,idx-1],1,size(ms.H⃗,2)))
-		kmag, evec = solve_k_single(ms,ω,solver;nev,eigind,maxiter,max_eigsolves,k_tol,eig_tol,log)
-		kmags[idx] = kmag
-		evecs[:,idx] =  canonicalize_phase(evec,kmag,ms.M̂.ε⁻¹,ms.grid)
-	end
-    with_logger(solver.logger) do
-        solver_str = string(solver)
-		k_dir = norm(Vector{Float64}(ms.M̂.k⃗))
-		ε = sliceinv_3x3(ms.M̂.ε⁻¹) 
-        @debug "solve_k" ω ε kmags evecs nev k_dir maxiter k_tol eig_tol max_eigsolves solver_str
-    end
-	return kmags, collect(copy.(eachcol(evecs))) #evecs #[copy(ev) for ev in eachcol(evecs)] #collect(eachcol(evecs))
-end
+# """
+# This function is UNUSED (below)
+# """
+# function solve_k(ms::ModeSolver{ND,T},ω::T,solver::TS;nev=1,maxiter=100,k_tol=1e-8,eig_tol=1e-8,
+# 	max_eigsolves=60,log=false) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} #
+# 	@debug "Using HDF5-logging solve_k method"
+# 	kmags = Vector{T}(undef,nev)
+# 	evecs = Matrix{Complex{T}}(undef,(size(ms.H⃗,1),nev))
+# 	for (idx,eigind) in enumerate(1:nev)
+# 		# idx>1 && copyto!(ms.H⃗,repeat(evecs[:,idx-1],1,size(ms.H⃗,2)))
+# 		kmag, evec = solve_k_single(ms,ω,solver;nev,eigind,maxiter,max_eigsolves,k_tol,eig_tol,log)
+# 		kmags[idx] = kmag
+# 		evecs[:,idx] =  canonicalize_phase(evec,kmag,ms.M̂.ε⁻¹,ms.grid)
+# 	end
+#     with_logger(solver.logger) do
+#         solver_str = string(solver)
+# 		k_dir = norm(Vector{Float64}(ms.M̂.k⃗))
+# 		ε = sliceinv_3x3(ms.M̂.ε⁻¹) 
+#         @debug "solve_k" ω ε kmags evecs nev k_dir maxiter k_tol eig_tol max_eigsolves solver_str
+#     end
+# 	return kmags, collect(copy.(eachcol(evecs))) #evecs #[copy(ev) for ev in eachcol(evecs)] #collect(eachcol(evecs))
+# end
 
-"""
-Unclear if this function is used.
-"""
-function solve_k(ms::ModeSolver{ND,T},ω::T,ε⁻¹::AbstractArray{T},solver::AbstractEigensolver;nev=1,
-	max_eigsolves=60, maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,f_filter=nothing) where {ND,T<:Real} 
-	Zygote.@ignore(update_ε⁻¹(ms,ε⁻¹))
-	solve_k(ms, ω, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, f_filter)
-end
+# """
+# Unclear if this function is used.
+# """
+# function solve_k(ms::ModeSolver{ND,T},ω::T,ε⁻¹::AbstractArray{T},solver::AbstractEigensolver;nev=1,
+# 	max_eigsolves=60, maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false) where {ND,T<:Real} 
+# 	Zygote.@ignore(update_ε⁻¹(ms,ε⁻¹))
+# 	solve_k(ms, ω, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log)
+# end
 
 """
 	Solves the wavevector of a given dielectric structure ε at frequency ω. 
@@ -160,9 +160,9 @@ end
 """
 function solve_k(ω::T,ε⁻¹::AbstractArray{T},grid::Grid{ND,T},solver::AbstractEigensolver;nev=1,
 	max_eigsolves=60,maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,kguess=nothing,Hguess=nothing,
-	f_filter=nothing,overwrite=false) where {ND,T<:Real} 
+	overwrite=false) where {ND,T<:Real} 
 	ms = ModeSolver(k_guess(ω,ε⁻¹), ε⁻¹, grid; nev, maxiter, tol=eig_tol)
-	solve_k(ms, ω, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, f_filter,)
+	solve_k_nmodes(ms, ω, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log,)
 end
 
 """
@@ -170,10 +170,10 @@ end
 """
 function rrule(::typeof(solve_k), ω::T, ε⁻¹::AbstractArray{T}, grid::Grid{ND,T}, solver::TS; nev=1,
 	max_eigsolves=60,maxiter=100,k_tol=1e-8,eig_tol=1e-8,log=false,kguess=nothing,Hguess=nothing,
-	f_filter=nothing,overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver} 
+	overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver} 
 	
-	kmags,evecs = solve_k(ω, ε⁻¹, grid, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, kguess, Hguess,
-	f_filter, overwrite)
+	kmags,evecs = solve_k(ω, ε⁻¹, grid, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, kguess,
+	Hguess, overwrite)
 	# g⃗ = copy(ms.M̂.g⃗)
 	# (mag, m⃗, n⃗), mag_m_n_pb = Zygote.pullback(k) do x
 	# 	mag_m_n(x,dropgrad(g⃗))
@@ -251,10 +251,10 @@ end
 """
 function rrule(::typeof(solve_k), ω::T, ε⁻¹::AbstractArray{T}, grid::Grid{ND,T}, solver::TS; nev=1,
 	max_eigsolves=60, maxiter=100, k_tol=1e-8, eig_tol=1e-8, log=false, kguess=nothing, Hguess=nothing,
-	f_filter=nothing, overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} 
+	overwrite=false) where {ND,T<:Real,TS<:AbstractEigensolver{L} where L<:HDF5Logger} 
 	
-	kmags,evecs = solve_k(ω, ε⁻¹, grid, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, kguess, Hguess,
-	f_filter, overwrite)
+	kmags,evecs = solve_k(ω, ε⁻¹, grid, solver; nev, maxiter, max_eigsolves, k_tol, eig_tol, log, kguess, 
+	Hguess, overwrite)
 
 	solver_logger= solver.logger
 
